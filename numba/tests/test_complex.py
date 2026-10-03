@@ -150,6 +150,59 @@ class TestComplexNaNRecovery(BaseComplexTest, TestCase):
                 cfunc(1+1j, denom)
 
 
+@skip_unless_py314_or_later
+class TestMixedComplexArithmetic(BaseComplexTest, TestCase):
+    def run_mixed(self, pyfunc, flags=no_pyobj_flags):
+        reals = [-0.0, +0.0, 1, -1, 1e200,
+                 float('-inf'), float('+inf'), float('nan')]
+        complexes = [complex(x, y) for x, y in itertools.product(reals, reals)]
+        self.run_binary(pyfunc, [(types.complex128, types.float64)],
+                        list(itertools.product(complexes, reals)), flags=flags)
+        self.run_binary(pyfunc, [(types.float64, types.complex128)],
+                        list(itertools.product(reals, complexes)), flags=flags)
+        self.run_binary(pyfunc, [(types.complex128, types.int64)],
+                        [(complex(float('inf'), 1), 2)], flags=flags)
+        self.run_binary(pyfunc, [(types.int64, types.complex128)],
+                        [(2, complex(float('inf'), 1))], flags=flags)
+
+    def test_add(self):
+        self.run_mixed(add_usecase)
+
+    def test_sub(self):
+        self.run_mixed(sub_usecase)
+
+    def test_mul(self):
+        self.run_mixed(mul_usecase)
+
+    def test_div(self):
+        self.run_mixed(div_usecase)
+
+    def test_div_zero(self):
+        cfunc = jit((types.complex128, types.float64),
+                    **no_pyobj_flags)(div_usecase)
+        for denom in [0.0, -0.0]:
+            with self.assertRaises(ZeroDivisionError):
+                cfunc(1+1j, denom)
+        cfunc = jit((types.float64, types.complex128),
+                    **no_pyobj_flags)(div_usecase)
+        for denom in [0j, complex(-0.0, -0.0)]:
+            with self.assertRaises(ZeroDivisionError):
+                cfunc(1.0, denom)
+
+    def test_float32(self):
+        inf = float('inf')
+        nan = float('nan')
+        reals = [-0.0, 0.5, -2, inf, nan]
+        complexes = [complex(x, y) for x, y in itertools.product(reals, reals)]
+        for pyfunc in [add_usecase, sub_usecase, mul_usecase, div_usecase]:
+            self.run_binary(pyfunc, [(types.complex64, types.float32)],
+                            list(itertools.product(complexes, reals[:-1])),
+                            flags=no_pyobj_flags)
+            self.run_binary(pyfunc, [(types.float32, types.complex64)],
+                            list(itertools.product(reals, complexes[:-1])),
+                            flags=no_pyobj_flags)
+
+
 class TestCMath(BaseComplexTest, TestCase):
     """
     Tests for cmath module support.

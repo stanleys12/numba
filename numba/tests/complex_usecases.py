@@ -1,6 +1,12 @@
 import cmath
 
 
+def add_usecase(x, y):
+    return x + y
+
+def sub_usecase(x, y):
+    return x - y
+
 def div_usecase(x, y):
     return x / y
 
