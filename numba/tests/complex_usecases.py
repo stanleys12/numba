@@ -1,11 +1,33 @@
 import cmath
 
 
+def add_usecase(x, y):
+    return x + y
+
+def sub_usecase(x, y):
+    return x - y
+
 def div_usecase(x, y):
     return x / y
 
 def mul_usecase(x, y):
     return x * y
+
+def iadd_usecase(x, y):
+    x += y
+    return x
+
+def isub_usecase(x, y):
+    x -= y
+    return x
+
+def imul_usecase(x, y):
+    x *= y
+    return x
+
+def idiv_usecase(x, y):
+    x /= y
+    return x
 
 def real_usecase(x):
     return x.real

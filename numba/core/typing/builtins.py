@@ -3,7 +3,7 @@ import itertools
 import numpy as np
 import operator
 
-from numba.core import types, errors
+from numba.core import types, errors, utils
 from numba import prange
 from numba.parfors.parfor import internal_prange
 
@@ -165,10 +165,23 @@ integer_binop_cases = tuple(
     for op1, op2 in itertools.product(machine_ints, machine_ints)
     )
 
+# Python 3.14+ combines a real and a complex operand without first converting
+# the real operand to complex.
+if utils.PYVERSION >= (3, 14):
+    mixed_complex_binop_cases = tuple(
+        sig
+        for fty, cty in [(types.float32, types.complex64),
+                         (types.float64, types.complex128)]
+        for sig in (signature(cty, fty, cty), signature(cty, cty, fty))
+        )
+else:
+    mixed_complex_binop_cases = ()
+
 
 class BinOp(ConcreteTemplate):
     cases = list(integer_binop_cases)
     cases += [signature(op, op, op) for op in sorted(types.real_domain)]
+    cases += mixed_complex_binop_cases
     cases += [signature(op, op, op) for op in sorted(types.complex_domain)]
 
 
@@ -219,6 +232,7 @@ class BinOpTrueDiv(ConcreteTemplate):
     cases = [signature(types.float64, op1, op2)
              for op1, op2 in itertools.product(machine_ints, machine_ints)]
     cases += [signature(op, op, op) for op in sorted(types.real_domain)]
+    cases += mixed_complex_binop_cases
     cases += [signature(op, op, op) for op in sorted(types.complex_domain)]
 
 
@@ -227,6 +241,7 @@ class BinOpTrueDiv(ConcreteTemplate):
     cases = [signature(types.float64, op1, op2)
              for op1, op2 in itertools.product(machine_ints, machine_ints)]
     cases += [signature(op, op, op) for op in sorted(types.real_domain)]
+    cases += mixed_complex_binop_cases
     cases += [signature(op, op, op) for op in sorted(types.complex_domain)]
 
 

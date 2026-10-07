@@ -1181,6 +1181,63 @@ def complex_div_impl(context, builder, sig, args):
     return impl_ret_untracked(context, builder, sig.return_type, res)
 
 
+def complex_real_add(a, b):
+    return complex(a.real + b, a.imag)
+
+def real_complex_add(a, b):
+    return complex(a + b.real, b.imag)
+
+def complex_real_sub(a, b):
+    return complex(a.real - b, a.imag)
+
+def real_complex_sub(a, b):
+    return complex(a - b.real, -b.imag)
+
+def complex_real_mul(a, b):
+    return complex(a.real * b, a.imag * b)
+
+def real_complex_mul(a, b):
+    return complex(a * b.real, a * b.imag)
+
+def complex_real_div(a, b):
+    if not b:
+        raise ZeroDivisionError("division by zero")
+    return complex(a.real / b, a.imag / b)
+
+def real_complex_div(a, b):
+    # This is CPython's algorithm (in _Py_rc_quot()).
+    breal = b.real
+    bimag = b.imag
+    abs_breal = abs(breal)
+    abs_bimag = abs(bimag)
+    if abs_breal >= abs_bimag:
+        if abs_breal == 0.0:
+            raise ZeroDivisionError("division by zero")
+        ratio = bimag / breal
+        denom = breal + bimag * ratio
+        res = complex(a / denom, (-a * ratio) / denom)
+    elif abs_bimag >= abs_breal:
+        ratio = breal / bimag
+        denom = breal * ratio + bimag
+        res = complex((a * ratio) / denom, -a / denom)
+    else:
+        res = complex(NAN, NAN)
+
+    if (math.isnan(res.real) and math.isnan(res.imag) and math.isfinite(a)
+            and (math.isinf(abs_breal) or math.isinf(abs_bimag))):
+        x = math.copysign(1.0 if math.isinf(breal) else 0.0, breal)
+        y = math.copysign(1.0 if math.isinf(bimag) else 0.0, bimag)
+        res = complex(0.0 * (a * x), 0.0 * (-a * y))
+
+    return res
+
+def mixed_complex_impl(pyfunc):
+    def impl(context, builder, sig, args):
+        res = context.compile_internal(builder, pyfunc, sig, args)
+        return impl_ret_untracked(context, builder, sig.return_type, res)
+    return impl
+
+
 def complex_negate_impl(context, builder, sig, args):
     from numba.cpython import mathimpl
     [typ] = sig.args
@@ -1251,6 +1308,19 @@ lower_builtin(operator.eq, ty, ty)(complex_eq_impl)
 lower_builtin(operator.ne, ty, ty)(complex_ne_impl)
 
 lower_builtin(abs, ty)(complex_abs_impl)
+
+if utils.PYVERSION >= (3, 14):
+    for ops, cr, rc in [
+        ((operator.add, operator.iadd), complex_real_add, real_complex_add),
+        ((operator.sub, operator.isub), complex_real_sub, real_complex_sub),
+        ((operator.mul, operator.imul), complex_real_mul, real_complex_mul),
+        ((operator.truediv, operator.itruediv),
+         complex_real_div, real_complex_div),
+    ]:
+        for op in ops:
+            lower_builtin(op, ty, types.Float)(mixed_complex_impl(cr))
+            lower_builtin(op, types.Float, ty)(mixed_complex_impl(rc))
+    del ops, cr, rc, op
 
 del ty
 
